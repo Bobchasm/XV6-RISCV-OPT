@@ -6,8 +6,11 @@
 #include "proc.h"
 #include "sched.h"
 
+extern uint ticks;
+
 extern const struct sched_strategy rr_sched_strategy;
 extern const struct sched_strategy priority_sched_strategy;
+extern const struct sched_strategy mlfq_sched_strategy;
 
 int current_sched_policy = SCHED_DEFAULT_POLICY;
 
@@ -19,7 +22,8 @@ sched_register_strategy(const struct sched_strategy *strategy)
   if (strategy == 0 || strategy->policy < 0 ||
       strategy->policy >= SCHED_POLICY_COUNT ||
       strategy->name == 0 || strategy->select_next == 0 ||
-      strategy->on_tick == 0 || strategy->on_yield == 0)
+      strategy->on_tick == 0 || strategy->on_yield == 0 ||
+      strategy->on_wakeup == 0 || strategy->should_preempt == 0)
     return -1;
 
   strategies[strategy->policy] = strategy;
@@ -46,6 +50,7 @@ schedinit(void)
 {
   sched_register_strategy(&rr_sched_strategy);
   sched_register_strategy(&priority_sched_strategy);
+  sched_register_strategy(&mlfq_sched_strategy);
   if (!sched_policy_available(SCHED_DEFAULT_POLICY))
     current_sched_policy = SCHED_RR;
 }
@@ -102,6 +107,8 @@ sched_proc_init(struct proc *p)
   p->time_slice = SCHED_RR_TIME_SLICE;
   p->run_time = 0;
   p->ready_count = 0;
+  p->ready_ticks = 0;
+  p->ready_since = ticks;
   p->wait_count = 0;
   p->sched_policy = sched_policy_current();
   for (int i = 0; i < PROC_STATE_COUNT; i++)
@@ -112,6 +119,7 @@ void
 sched_proc_runnable(struct proc *p)
 {
   p->ready_count++;
+  p->ready_since = ticks;
 }
 
 void
@@ -129,4 +137,16 @@ void
 sched_on_yield(struct proc *p)
 {
   active_strategy()->on_yield(p);
+}
+
+void
+sched_on_wakeup(struct proc *p)
+{
+  active_strategy()->on_wakeup(p);
+}
+
+int
+sched_should_preempt(struct proc *p)
+{
+  return active_strategy()->should_preempt(p);
 }

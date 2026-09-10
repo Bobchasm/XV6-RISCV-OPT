@@ -105,6 +105,8 @@ struct proc {
   int time_slice;
   uint64 run_time;
   uint64 ready_count;
+  uint64 ready_ticks;
+  uint64 ready_since;
   uint64 wait_count;
   uint64 state_stat[PROC_STATE_COUNT];
   enum sched_policy sched_policy;

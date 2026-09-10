@@ -84,7 +84,8 @@ usertrap(void)
   // Account for the tick before giving up the CPU.
   if (which_dev == 2) {
     update_proc_after_tick(p);
-    yield();
+    if (sched_should_preempt(p))
+      yield();
   }
 
   prepare_return();
@@ -157,8 +158,10 @@ kerneltrap()
 
   // Account for the tick before giving up the CPU.
   if (which_dev == 2 && myproc() != 0) {
-    update_proc_after_tick(myproc());
-    yield();
+    struct proc *p = myproc();
+    update_proc_after_tick(p);
+    if (sched_should_preempt(p))
+      yield();
   }
 
   // the yield() may have caused some traps to occur,

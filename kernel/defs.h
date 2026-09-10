@@ -26,6 +26,8 @@ void            sched_proc_init(struct proc*);
 void            sched_proc_runnable(struct proc*);
 void            update_proc_after_tick(struct proc*);
 void            sched_on_yield(struct proc*);
+void            sched_on_wakeup(struct proc*);
+int             sched_should_preempt(struct proc*);
 
 // bio.c
 void            binit(void);
