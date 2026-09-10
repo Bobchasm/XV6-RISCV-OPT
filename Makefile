@@ -15,6 +15,7 @@ OBJS = \
   $K/proc.o \
   $K/sched.o \
   $K/sched_rr.o \
+  $K/sched_priority.o \
   $K/swtch.o \
   $K/trampoline.o \
   $K/trap.o \
