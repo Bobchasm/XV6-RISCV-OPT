@@ -7,6 +7,7 @@
 #include "sched.h"
 
 extern const struct sched_strategy rr_sched_strategy;
+extern const struct sched_strategy priority_sched_strategy;
 
 int current_sched_policy = SCHED_DEFAULT_POLICY;
 
@@ -44,6 +45,7 @@ void
 schedinit(void)
 {
   sched_register_strategy(&rr_sched_strategy);
+  sched_register_strategy(&priority_sched_strategy);
   if (!sched_policy_available(SCHED_DEFAULT_POLICY))
     current_sched_policy = SCHED_RR;
 }
