@@ -56,6 +56,7 @@ procinit(void)
     p->state = UNUSED;
     p->kstack = KSTACK((int)(p - proc));
   }
+  schedinit();
 }
 
 // Must be called with interrupts disabled,
@@ -124,6 +125,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  sched_proc_init(p);
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
@@ -167,6 +169,15 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->priority = 0;
+  p->queue_level = 0;
+  p->time_slice = 0;
+  p->run_time = 0;
+  p->ready_count = 0;
+  p->wait_count = 0;
+  p->sched_policy = SCHED_RR;
+  for (int i = 0; i < PROC_STATE_COUNT; i++)
+    p->state_stat[i] = 0;
   p->state = UNUSED;
 }
 
@@ -226,6 +237,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  sched_proc_runnable(p);
 
   release(&p->lock);
 }
@@ -299,6 +311,7 @@ kfork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  sched_proc_runnable(np);
   release(&np->lock);
 
   return pid;
@@ -428,7 +441,6 @@ kwait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
 
   c->proc = 0;
@@ -441,28 +453,24 @@ scheduler(void)
     intr_on();
     intr_off();
 
-    int found = 0;
-    for (p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if (p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    struct proc *p = select_next_proc();
+    if (p != 0) {
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      p->sched_policy = sched_policy_current();
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
 
-        // Don't re-enable interrupts on release.
-        mycpu()->intena = 0;
+      // Don't re-enable interrupts on release.
+      mycpu()->intena = 0;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
-      }
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
       release(&p->lock);
-    }
-    if (found == 0) {
+    } else {
       // nothing to run; stop running on this core until an interrupt.
       asm volatile("wfi");
     }
@@ -503,6 +511,8 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  sched_proc_runnable(p);
+  sched_on_yield(p);
   sched();
   release(&p->lock);
 }
@@ -589,6 +599,7 @@ wakeup(void *chan)
       // go to sleep, also set it back to RUNNING.
       if (p->state == SLEEPING) {
         p->state = RUNNABLE;
+        sched_proc_runnable(p);
       }
     }
     release(&p->lock);
@@ -610,6 +621,7 @@ kkill(int pid)
       if (p->state == SLEEPING) {
         // Wake process from sleep().
         p->state = RUNNABLE;
+        sched_proc_runnable(p);
       }
       release(&p->lock);
       return 0;

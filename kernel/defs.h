@@ -1,4 +1,6 @@
 // clang-format off
+#include "sched.h"
+
 struct buf;
 struct context;
 struct file;
@@ -9,6 +11,19 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+
+// sched.c
+int             sched_register_strategy(const struct sched_strategy*);
+void            schedinit(void);
+int             sched_policy_switch(enum sched_policy);
+enum sched_policy sched_policy_current(void);
+const char*     sched_policy_name(enum sched_policy);
+int             sched_policy_available(enum sched_policy);
+struct proc*    select_next_proc(void);
+void            sched_proc_init(struct proc*);
+void            sched_proc_runnable(struct proc*);
+void            update_proc_after_tick(struct proc*);
+void            sched_on_yield(struct proc*);
 
 // bio.c
 void            binit(void);

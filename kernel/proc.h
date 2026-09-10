@@ -1,3 +1,5 @@
+#include "sched.h"
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -76,7 +78,15 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
-enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate {
+  UNUSED,
+  USED,
+  SLEEPING,
+  RUNNABLE,
+  RUNNING,
+  ZOMBIE,
+  PROC_STATE_COUNT,
+};
 
 // Per-process state
 struct proc {
@@ -88,6 +98,16 @@ struct proc {
   int killed;           // If non-zero, have been killed
   int xstate;           // Exit status to be returned to parent's wait
   int pid;              // Process ID
+
+  // Shared scheduling state.  p->lock protects fields changed while running.
+  int priority;
+  int queue_level;
+  int time_slice;
+  uint64 run_time;
+  uint64 ready_count;
+  uint64 wait_count;
+  uint64 state_stat[PROC_STATE_COUNT];
+  enum sched_policy sched_policy;
 
   // wait_lock must be held when using this:
   struct proc *parent; // Parent process
