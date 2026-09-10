@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from pathlib import Path
 
 
 RESULT_RE = re.compile(
@@ -23,6 +24,28 @@ def run_command(command, cwd):
     subprocess.run(command, cwd=cwd, check=True)
 
 
+def cleanup_intermediate_artifacts(repo):
+    """Keep kernel/kernel and fs.img, but remove build-only generated files."""
+    root = Path(repo)
+    patterns = [
+        "kernel/*.o",
+        "kernel/*.d",
+        "kernel/*.asm",
+        "kernel/*.sym",
+        "user/*.o",
+        "user/*.d",
+        "user/*.asm",
+        "user/*.sym",
+        "user/usys.S",
+        "mkfs/mkfs",
+        ".gdbinit",
+    ]
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if path.is_file() or path.is_symlink():
+                path.unlink()
+
+
 def build(repo, policy):
     run_command(["make", "clean"], repo)
     run_command(
@@ -34,6 +57,7 @@ def build(repo, policy):
         ],
         repo,
     )
+    cleanup_intermediate_artifacts(repo)
 
 
 def run_qemu(repo, jobs, work):
@@ -206,8 +230,11 @@ def main():
     for policy in [item.strip() for item in args.policies.split(",") if item.strip()]:
         print(f"[schedbench] building {policy}", file=sys.stderr)
         build(repo, policy)
-        output = run_qemu(repo, args.jobs, args.work)
-        all_rows.extend(parse_output(output, policy))
+        try:
+            output = run_qemu(repo, args.jobs, args.work)
+            all_rows.extend(parse_output(output, policy))
+        finally:
+            cleanup_intermediate_artifacts(repo)
 
     print_results(all_rows, args.output)
     print_summary(all_rows)
