@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "schedinfo.h"
 #include "vm.h"
 
 uint64
@@ -109,4 +110,42 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_set_prio(void)
+{
+  int pid;
+  int priority;
+
+  argint(0, &pid);
+  argint(1, &priority);
+  return kset_prio(pid, priority);
+}
+
+uint64
+sys_get_psinfo(void)
+{
+  int pid;
+  uint64 addr;
+  struct psinfo info;
+
+  argint(0, &pid);
+  argaddr(1, &addr);
+  if (kget_psinfo(pid, &info) < 0)
+    return -1;
+  return copyout(myproc()->pagetable, myproc()->sz, addr, (char *)&info,
+                 sizeof(info));
+}
+
+uint64
+sys_sys_stat(void)
+{
+  uint64 addr;
+  struct sched_stat stat;
+
+  argaddr(0, &addr);
+  ksys_stat(&stat);
+  return copyout(myproc()->pagetable, myproc()->sz, addr, (char *)&stat,
+                 sizeof(stat));
 }

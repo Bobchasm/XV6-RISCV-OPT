@@ -43,3 +43,6 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("sync");
+entry("set_prio");
+entry("get_psinfo");
+entry("sys_stat");

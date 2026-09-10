@@ -4,6 +4,7 @@
 #include "riscv.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "schedinfo.h"
 #include "defs.h"
 
 struct cpu cpus[NCPU];
@@ -263,6 +264,93 @@ growproc(int n)
   }
   p->sz = sz;
   return 0;
+}
+
+static void
+fill_psinfo_locked(struct proc *p, struct psinfo *info)
+{
+  // 调用者已经持有 p->lock，这里只做字段拷贝，不改变调度状态。
+  info->inuse = p->state != UNUSED;
+  info->pid = p->pid;
+  info->state = p->state;
+  info->priority = p->priority;
+  info->queue_level = p->queue_level;
+  info->time_slice = p->time_slice;
+  info->sched_policy = p->sched_policy;
+  info->run_time = p->run_time;
+  info->ready_count = p->ready_count;
+  info->wait_count = p->wait_count;
+  safestrcpy(info->name, p->name, sizeof(info->name));
+  for (int i = 0; i < PSINFO_STATE_COUNT; i++)
+    info->state_stat[i] = p->state_stat[i];
+}
+
+int
+kset_prio(int pid, int priority)
+{
+  struct proc *p;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED && p->pid == pid) {
+      // priority 是所有调度策略共享的静态优先级字段。
+      p->priority = priority;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+
+  return -1;
+}
+
+int
+kget_psinfo(int pid, struct psinfo *info)
+{
+  struct proc *p;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED && p->pid == pid) {
+      fill_psinfo_locked(p, info);
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+
+  return -1;
+}
+
+void
+ksys_stat(struct sched_stat *stat)
+{
+  struct proc *p;
+
+  memset(stat, 0, sizeof(*stat));
+  stat->current_policy = sched_policy_current();
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED) {
+      stat->process_count++;
+      if (p->state == RUNNABLE)
+        stat->runnable_count++;
+      else if (p->state == RUNNING)
+        stat->running_count++;
+      else if (p->state == SLEEPING)
+        stat->sleeping_count++;
+      else if (p->state == ZOMBIE)
+        stat->zombie_count++;
+
+      stat->total_run_time += p->run_time;
+      stat->total_ready_count += p->ready_count;
+      stat->total_wait_count += p->wait_count;
+      for (int i = 0; i < PSINFO_STATE_COUNT; i++)
+        stat->total_state_stat[i] += p->state_stat[i];
+    }
+    release(&p->lock);
+  }
 }
 
 // Create a new process, copying the parent.
@@ -576,6 +664,8 @@ sleep(void)
 
   acquire(&p->lock);
   if (p->chan != 0) {
+    // 记录进入睡眠等待的次数，供 get_psinfo/sys_stat 观察等待行为。
+    p->wait_count++;
     p->state = SLEEPING;
     sched();
   }

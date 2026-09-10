@@ -158,6 +158,7 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_sync\
+	$U/_schedinfo\
 	$U/_schedbench\
 
 fs.img: mkfs/mkfs $(UPROGS)
