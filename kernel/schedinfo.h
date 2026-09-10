@@ -18,6 +18,7 @@ struct psinfo {
   char name[PSINFO_NAME_LEN];
   uint64 run_time;
   uint64 ready_count;
+  uint64 ready_ticks;
   uint64 wait_count;
   uint64 state_stat[PSINFO_STATE_COUNT];
 };
@@ -32,6 +33,7 @@ struct sched_stat {
   int zombie_count;
   uint64 total_run_time;
   uint64 total_ready_count;
+  uint64 total_ready_ticks;
   uint64 total_wait_count;
   uint64 total_state_stat[PSINFO_STATE_COUNT];
 };

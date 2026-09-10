@@ -16,6 +16,8 @@ struct sched_strategy {
   struct proc *(*select_next)(void);
   void (*on_tick)(struct proc *);
   void (*on_yield)(struct proc *);
+  void (*on_wakeup)(struct proc *);
+  int (*should_preempt)(struct proc *);
 };
 
 #ifndef SCHED_DEFAULT_POLICY
@@ -25,6 +27,13 @@ struct sched_strategy {
 #define SCHED_DEFAULT_PRIORITY 0
 #define SCHED_DEFAULT_QUEUE_LEVEL 0
 #define SCHED_RR_TIME_SLICE 1
+
+// MLFQ 使用三级队列：0 为最高优先级，2 为最低优先级。
+#define SCHED_MLFQ_LEVELS 3
+#define SCHED_MLFQ_TIME_SLICE_0 1
+#define SCHED_MLFQ_TIME_SLICE_1 2
+#define SCHED_MLFQ_TIME_SLICE_2 4
+#define SCHED_MLFQ_AGING_THRESHOLD 8
 
 extern int current_sched_policy;
 
@@ -40,5 +49,7 @@ void sched_proc_init(struct proc *);
 void sched_proc_runnable(struct proc *);
 void update_proc_after_tick(struct proc *);
 void sched_on_yield(struct proc *);
+void sched_on_wakeup(struct proc *);
+int sched_should_preempt(struct proc *);
 
 #endif

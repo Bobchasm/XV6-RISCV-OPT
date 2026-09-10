@@ -175,6 +175,8 @@ freeproc(struct proc *p)
   p->time_slice = 0;
   p->run_time = 0;
   p->ready_count = 0;
+  p->ready_ticks = 0;
+  p->ready_since = 0;
   p->wait_count = 0;
   p->sched_policy = SCHED_RR;
   for (int i = 0; i < PROC_STATE_COUNT; i++)
@@ -279,6 +281,7 @@ fill_psinfo_locked(struct proc *p, struct psinfo *info)
   info->sched_policy = p->sched_policy;
   info->run_time = p->run_time;
   info->ready_count = p->ready_count;
+  info->ready_ticks = p->ready_ticks;
   info->wait_count = p->wait_count;
   safestrcpy(info->name, p->name, sizeof(info->name));
   for (int i = 0; i < PSINFO_STATE_COUNT; i++)
@@ -345,6 +348,7 @@ ksys_stat(struct sched_stat *stat)
 
       stat->total_run_time += p->run_time;
       stat->total_ready_count += p->ready_count;
+      stat->total_ready_ticks += p->ready_ticks;
       stat->total_wait_count += p->wait_count;
       for (int i = 0; i < PSINFO_STATE_COUNT; i++)
         stat->total_state_stat[i] += p->state_stat[i];
@@ -690,6 +694,7 @@ wakeup(void *chan)
       if (p->state == SLEEPING) {
         p->state = RUNNABLE;
         sched_proc_runnable(p);
+        sched_on_wakeup(p);
       }
     }
     release(&p->lock);
@@ -712,6 +717,7 @@ kkill(int pid)
         // Wake process from sleep().
         p->state = RUNNABLE;
         sched_proc_runnable(p);
+        sched_on_wakeup(p);
       }
       release(&p->lock);
       return 0;

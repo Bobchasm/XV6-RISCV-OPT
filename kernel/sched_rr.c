@@ -43,10 +43,25 @@ rr_on_yield(struct proc *p)
   p->time_slice = SCHED_RR_TIME_SLICE;
 }
 
+static void
+rr_on_wakeup(struct proc *p)
+{
+  (void)p;
+}
+
+static int
+rr_should_preempt(struct proc *p)
+{
+  (void)p;
+  return 1;
+}
+
 const struct sched_strategy rr_sched_strategy = {
   .policy = SCHED_RR,
   .name = "rr",
   .select_next = rr_select_next,
   .on_tick = rr_on_tick,
   .on_yield = rr_on_yield,
+  .on_wakeup = rr_on_wakeup,
+  .should_preempt = rr_should_preempt,
 };
