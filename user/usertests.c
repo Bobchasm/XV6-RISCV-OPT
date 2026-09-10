@@ -18,6 +18,7 @@
 //
 
 #define BUFSZ ((MAXOPBLOCKS + 2) * BSIZE)
+#define EXISTING_TEST_FILE "init"
 
 char buf[BUFSZ];
 
@@ -84,9 +85,9 @@ copyout(char *s)
   for (int ai = 0; ai < sizeof(addrs) / sizeof(addrs[0]); ai++) {
     uint64 addr = addrs[ai];
 
-    int fd = open("README", 0);
+    int fd = open(EXISTING_TEST_FILE, 0);
     if (fd < 0) {
-      printf("open(README) failed\n");
+      printf("open(%s) failed\n", EXISTING_TEST_FILE);
       exit(1);
     }
     int n = read(fd, (void *)addr, 8192);
@@ -275,9 +276,9 @@ rwsbrk(char *s)
   close(fd);
   unlink("rwsbrk");
 
-  fd = open("README", O_RDONLY);
+  fd = open(EXISTING_TEST_FILE, O_RDONLY);
   if (fd < 0) {
-    printf("open(README) failed\n");
+    printf("open(%s) failed\n", EXISTING_TEST_FILE);
     exit(1);
   }
   n = read(fd, (void *)(a + PGSIZE), 10);
@@ -1901,7 +1902,7 @@ dirfile(char *s)
     printf("%s: unlink dirfile/xx succeeded!\n", s);
     exit(1);
   }
-  if (link("README", "dirfile/xx") == 0) {
+  if (link(EXISTING_TEST_FILE, "dirfile/xx") == 0) {
     printf("%s: link to dirfile/xx succeeded!\n", s);
     exit(1);
   }
@@ -1941,7 +1942,7 @@ iref(char *s)
     }
 
     mkdir("");
-    link("README", "");
+    link(EXISTING_TEST_FILE, "");
     fd = open("", O_CREATE);
     if (fd >= 0)
       close(fd);
@@ -2688,9 +2689,9 @@ lazy_copy(char *s)
     0x3ffffff000, 0x4000000000, 0x8000000000,
   };
   for (int i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
-    int fd = open("README", 0);
+    int fd = open(EXISTING_TEST_FILE, 0);
     if (fd < 0) {
-      printf("cannot open README\n");
+      printf("cannot open %s\n", EXISTING_TEST_FILE);
       exit(1);
     }
     if (read(fd, (char *)bad[i], 512) >= 0) {
