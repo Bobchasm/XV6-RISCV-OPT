@@ -13,6 +13,8 @@ OBJS = \
   $K/main.o \
   $K/vm.o \
   $K/proc.o \
+  $K/sched.o \
+  $K/sched_rr.o \
   $K/swtch.o \
   $K/trampoline.o \
   $K/trap.o \
@@ -60,6 +62,10 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
+# Select the default policy at build time, e.g.:
+#   make SCHED_DEFAULT_POLICY=SCHED_RR
+SCHED_DEFAULT_POLICY ?= SCHED_RR
+
 # Deterministic builds.
 DETFLAGS = -ffile-prefix-map=$(CURDIR)=.
 
@@ -78,6 +84,7 @@ CFLAGS += -fno-builtin-free
 CFLAGS += -fno-builtin-memcpy -Wno-main
 CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
 CFLAGS += -I.
+CFLAGS += -DSCHED_DEFAULT_POLICY=$(SCHED_DEFAULT_POLICY)
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
@@ -151,8 +158,8 @@ UPROGS=\
 	$U/_dorphan\
 	$U/_sync\
 
-fs.img: mkfs/mkfs README $(UPROGS)
-	mkfs/mkfs fs.img README $(UPROGS)
+fs.img: mkfs/mkfs $(UPROGS)
+	mkfs/mkfs fs.img $(UPROGS)
 
 -include kernel/*.d user/*.d
 
@@ -194,7 +201,7 @@ print-gdbport:
 
 QEMU_VERSION := $(shell $(QEMU) --version | head -n 1 | sed -E 's/^QEMU emulator version ([0-9]+\.[0-9]+)\..*/\1/')
 check-qemu-version:
-	@if [ "$(shell echo "$(QEMU_VERSION) >= $(MIN_QEMU_VERSION)" | bc)" -eq 0 ]; then \
+	@if ! printf '%s\n%s\n' "$(MIN_QEMU_VERSION)" "$(QEMU_VERSION)" | sort -V -C; then \
 		echo "ERROR: Need qemu version >= $(MIN_QEMU_VERSION)"; \
 		exit 1; \
 	fi
