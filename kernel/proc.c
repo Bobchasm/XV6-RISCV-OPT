@@ -177,7 +177,12 @@ freeproc(struct proc *p)
   p->ready_count = 0;
   p->ready_ticks = 0;
   p->ready_since = 0;
+  p->total_ready_time = 0;
   p->wait_count = 0;
+  p->schedule_count = 0;
+  p->create_tick = 0;
+  p->first_run_tick = 0;
+  p->exit_tick = 0;
   p->sched_policy = SCHED_RR;
   for (int i = 0; i < PROC_STATE_COUNT; i++)
     p->state_stat[i] = 0;
@@ -282,7 +287,12 @@ fill_psinfo_locked(struct proc *p, struct psinfo *info)
   info->run_time = p->run_time;
   info->ready_count = p->ready_count;
   info->ready_ticks = p->ready_ticks;
+  info->total_ready_time = p->total_ready_time;
   info->wait_count = p->wait_count;
+  info->schedule_count = p->schedule_count;
+  info->create_tick = p->create_tick;
+  info->first_run_tick = p->first_run_tick;
+  info->exit_tick = p->exit_tick;
   safestrcpy(info->name, p->name, sizeof(info->name));
   for (int i = 0; i < PSINFO_STATE_COUNT; i++)
     info->state_stat[i] = p->state_stat[i];
@@ -349,7 +359,9 @@ ksys_stat(struct sched_stat *stat)
       stat->total_run_time += p->run_time;
       stat->total_ready_count += p->ready_count;
       stat->total_ready_ticks += p->ready_ticks;
+      stat->total_ready_time += p->total_ready_time;
       stat->total_wait_count += p->wait_count;
+      stat->total_schedule_count += p->schedule_count;
       for (int i = 0; i < PSINFO_STATE_COUNT; i++)
         stat->total_state_stat[i] += p->state_stat[i];
     }
@@ -460,6 +472,7 @@ kexit(int status)
   acquire(&p->lock);
 
   p->xstate = status;
+  p->exit_tick = ticks;
   p->state = ZOMBIE;
 
   release(&wait_lock);
@@ -550,6 +563,11 @@ scheduler(void)
       // Switch to chosen process.  It is the process's job
       // to release its lock and then reacquire it
       // before jumping back to us.
+      p->ready_ticks = ticks - p->ready_since;
+      p->total_ready_time += p->ready_ticks;
+      if (p->schedule_count == 0)
+        p->first_run_tick = ticks;
+      p->schedule_count++;
       p->sched_policy = sched_policy_current();
       p->state = RUNNING;
       c->proc = p;

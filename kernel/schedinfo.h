@@ -19,7 +19,12 @@ struct psinfo {
   uint64 run_time;
   uint64 ready_count;
   uint64 ready_ticks;
+  uint64 total_ready_time;
   uint64 wait_count;
+  uint64 schedule_count;
+  uint64 create_tick;
+  uint64 first_run_tick;
+  uint64 exit_tick;
   uint64 state_stat[PSINFO_STATE_COUNT];
 };
 
@@ -34,7 +39,9 @@ struct sched_stat {
   uint64 total_run_time;
   uint64 total_ready_count;
   uint64 total_ready_ticks;
+  uint64 total_ready_time;
   uint64 total_wait_count;
+  uint64 total_schedule_count;
   uint64 total_state_stat[PSINFO_STATE_COUNT];
 };
 

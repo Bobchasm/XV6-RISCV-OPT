@@ -109,7 +109,12 @@ sched_proc_init(struct proc *p)
   p->ready_count = 0;
   p->ready_ticks = 0;
   p->ready_since = ticks;
+  p->total_ready_time = 0;
   p->wait_count = 0;
+  p->schedule_count = 0;
+  p->create_tick = ticks;
+  p->first_run_tick = 0;
+  p->exit_tick = 0;
   p->sched_policy = sched_policy_current();
   for (int i = 0; i < PROC_STATE_COUNT; i++)
     p->state_stat[i] = 0;

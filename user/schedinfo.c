@@ -40,16 +40,21 @@ main(int argc, char **argv)
   }
 
   printf("PSINFO pid=%d name=%s state=%s priority=%d queue=%d "
-         "slice=%d policy=%d run=%d ready=%d ready_ticks=%d wait=%d\n",
+         "slice=%d policy=%d run=%d ready=%d ready_ticks=%d "
+         "total_ready=%d wait=%d schedules=%d create=%d first_run=%d\n",
          info.pid, info.name, state_name(info.state), info.priority,
          info.queue_level, info.time_slice, info.sched_policy,
          (int)info.run_time, (int)info.ready_count, (int)info.ready_ticks,
-         (int)info.wait_count);
+         (int)info.total_ready_time, (int)info.wait_count,
+         (int)info.schedule_count, (int)info.create_tick,
+         (int)info.first_run_tick);
   printf("SCHEDSTAT policy=%d processes=%d runnable=%d running=%d "
-         "sleeping=%d zombie=%d run=%d ready=%d wait=%d\n",
+         "sleeping=%d zombie=%d run=%d ready=%d total_ready=%d wait=%d "
+         "schedules=%d\n",
          stat.current_policy, stat.process_count, stat.runnable_count,
          stat.running_count, stat.sleeping_count, stat.zombie_count,
          (int)stat.total_run_time, (int)stat.total_ready_count,
-         (int)stat.total_wait_count);
+         (int)stat.total_ready_time, (int)stat.total_wait_count,
+         (int)stat.total_schedule_count);
   exit(0);
 }
