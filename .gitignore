@@ -11,3 +11,5 @@ _*
 .gdbinit
 TAGS
 results/
+__pycache__/
+/build/

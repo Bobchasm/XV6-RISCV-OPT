@@ -118,6 +118,10 @@ tags: $(OBJS)
 	etags kernel/*.S kernel/*.c
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+SCENE_OBJS = \
+	schedworkloads/scene_main.o \
+	schedworkloads/scene_metrics.o \
+	schedworkloads/scene_workloads.o
 
 _%: %.o $(ULIB) $U/user.ld
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $< $(ULIB)
@@ -129,6 +133,14 @@ $U/usys.S : $U/usys.pl
 
 $U/usys.o : $U/usys.S
 	$(CC) $(CFLAGS) -c -o $U/usys.o $U/usys.S
+
+schedworkloads/%.o: schedworkloads/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$U/_schedscene: $(SCENE_OBJS) $(ULIB) $U/user.ld
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $(SCENE_OBJS) $(ULIB)
+	$(OBJDUMP) -S $@ > schedworkloads/schedscene.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > schedworkloads/schedscene.sym
 
 $U/_forktest: $U/forktest.o $(ULIB)
 	# forktest has less library code linked in - needs to be small
@@ -168,6 +180,7 @@ UPROGS=\
 	$U/_sync\
 	$U/_schedinfo\
 	$U/_schedbench\
+	$U/_schedscene\
 
 fs.img: mkfs/mkfs $(UPROGS)
 	mkfs/mkfs fs.img $(UPROGS)
@@ -212,8 +225,9 @@ clean:
 	*/*.o */*.d */*.asm */*.sym \
 	$K/kernel fs.img \
 	mkfs/mkfs .gdbinit \
-        $U/usys.S \
-	$(UPROGS)
+	$U/usys.S \
+	schedworkloads/*.asm schedworkloads/*.sym \
+		$(UPROGS)
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)

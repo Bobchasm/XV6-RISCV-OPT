@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Build xv6, run the common scheduler benchmark, and emit CSV results."""
+"""Shared helpers for scenario scheduler experiments."""
 
-import argparse
 import csv
 import os
 import re
@@ -12,21 +11,16 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT = REPO_ROOT / "results" / "schedbench.csv"
-sys.path.insert(0, str(REPO_ROOT))
 
-from schedworkloads.xv6_runner import ensure_policy_image
-
-
-# xv6 控制台输出有时会把两条 printf 结果粘在同一行，
-# 因此这里按标记扫描整段输出，而不是依赖换行切分。
 RESULT_RE = re.compile(
-    r"SCHEDBENCH\s+(?=job=)(.*?)(?=\r?\n|SCHEDBENCH(?:\s|_|$)|$)"
+    r"SCENEBENCH\s+(?=scenario=)(.*?)(?=\r?\n|SCENEBENCH(?:\s|_|$)|$)"
 )
-# END 行必须读到换行后才算完整；否则流式读取可能在 finish=42
-# 刚收到 finish=4 时就提前停止，导致实验总时长被截断。
-END_RE = re.compile(r"SCHEDBENCH_END start=(\d+) finish=(\d+)(?=\r?\n)")
+END_RE = re.compile(r"SCENEBENCH_END start=(\d+) finish=(\d+)(?=\r?\n)")
+POLICY_TARGETS = {
+    "SCHED_RR": "rr",
+    "SCHED_STATIC_PRIORITY": "static-priority",
+    "SCHED_MLFQ": "mlfq",
+}
 INT_FIELDS = {
     "job",
     "start",
@@ -50,9 +44,46 @@ INT_FIELDS = {
     "policy",
 }
 
+CSV_FIELDS = [
+    "policy",
+    "kernel_policy",
+    "run",
+    "scenario",
+    "job",
+    "kind",
+    "priority",
+    "start",
+    "first",
+    "finish",
+    "experiment_start",
+    "experiment_finish",
+    "elapsed",
+    "service",
+    "turnaround",
+    "weighted_turnaround",
+    "response",
+    "kernel_response",
+    "throughput",
+    "queue",
+    "slice",
+    "run_ticks",
+    "cpu_share",
+    "ready_count",
+    "ready_ticks",
+    "total_ready_time",
+    "avg_ready_per_schedule",
+    "wait_count",
+    "schedule_count",
+    "create_tick",
+    "first_run_tick",
+]
+
+
+def run_command(command, cwd):
+    subprocess.run(command, cwd=cwd, check=True, stdout=sys.stderr)
+
 
 def cleanup_intermediate_artifacts(repo):
-    """Keep kernel/kernel and fs.img, but remove build-only generated files."""
     root = Path(repo)
     patterns = [
         "kernel/*.o",
@@ -63,6 +94,10 @@ def cleanup_intermediate_artifacts(repo):
         "user/*.d",
         "user/*.asm",
         "user/*.sym",
+        "schedworkloads/*.o",
+        "schedworkloads/*.d",
+        "schedworkloads/*.asm",
+        "schedworkloads/*.sym",
         "user/usys.S",
         "mkfs/mkfs",
         ".gdbinit",
@@ -73,7 +108,44 @@ def cleanup_intermediate_artifacts(repo):
                 path.unlink()
 
 
-def run_qemu(repo, jobs, work, priorities, timeout, kernel, fs_image):
+def policy_image_paths(repo, policy):
+    if policy not in POLICY_TARGETS:
+        supported = ", ".join(sorted(POLICY_TARGETS))
+        raise ValueError(f"unsupported policy {policy}; expected one of {supported}")
+
+    name = POLICY_TARGETS[policy]
+    root = Path(repo) / "build" / "policies" / name
+    return {
+        "kernel": root / f"kernel-{name}",
+        "fs_image": root / f"fs-{name}.img",
+        "target": name,
+    }
+
+
+def ensure_policy_image(repo, policy):
+    paths = policy_image_paths(repo, policy)
+    if paths["kernel"].is_file() and paths["fs_image"].is_file():
+        print(
+            f"[policy] reuse {policy}: {paths['kernel'].relative_to(repo)}",
+            file=sys.stderr,
+        )
+        return paths
+
+    print(f"[policy] build {policy} with make {paths['target']}", file=sys.stderr)
+    run_command(
+        ["make", paths["target"], "TOOLPREFIX=riscv64-linux-gnu-"],
+        repo,
+    )
+    cleanup_intermediate_artifacts(repo)
+
+    if not paths["kernel"].is_file() or not paths["fs_image"].is_file():
+        raise RuntimeError(
+            f"make {paths['target']} completed without creating policy images"
+        )
+    return paths
+
+
+def run_qemu(repo, command, end_re, timeout, label, kernel, fs_image):
     process = subprocess.Popen(
         [
             "make",
@@ -99,26 +171,19 @@ def run_qemu(repo, jobs, work, priorities, timeout, kernel, fs_image):
     boot_seen = False
     sent = False
     last_progress = launch_time
-    command = (
-        f"schedbench {jobs} {work} "
-        f"{priorities[0]} {priorities[1]} {priorities[2]}\n"
-    )
 
     try:
         while time.time() < deadline:
             now = time.time()
-            if boot_seen and not sent and now - launch_time >= 2:
-                process.stdin.write(command)
+            if boot_seen and not sent:
+                process.stdin.write(command + "\n")
                 process.stdin.flush()
                 sent = True
                 last_progress = now
-                print(
-                    f"[schedbench] sent command: {command.strip()}",
-                    file=sys.stderr,
-                )
+                print(f"[{label}] sent command: {command}", file=sys.stderr)
             if sent and now - last_progress >= 30:
                 print(
-                    f"[schedbench] waiting for benchmark output "
+                    f"[{label}] waiting for benchmark output "
                     f"({int(now - launch_time)}s/{timeout}s)",
                     file=sys.stderr,
                 )
@@ -136,18 +201,18 @@ def run_qemu(repo, jobs, work, priorities, timeout, kernel, fs_image):
                 )
             except BlockingIOError:
                 continue
-            if chunk:
-                output.append(chunk)
-                joined = "".join(output)
-                if "init: starting sh" in joined or "$ " in joined:
-                    boot_seen = True
-                if END_RE.search(joined):
-                    break
-            else:
+            if not chunk:
+                break
+
+            output.append(chunk)
+            joined = "".join(output)
+            if "init: starting sh" in joined or "$ " in joined:
+                boot_seen = True
+            if end_re.search(joined):
                 break
 
         output_text = "".join(output)
-        if not END_RE.search(output_text):
+        if not end_re.search(output_text):
             tail = output_text[-2000:].replace("\r", "")
             raise RuntimeError(
                 f"benchmark did not finish within {timeout} seconds\n"
@@ -179,51 +244,40 @@ def parse_key_values(text):
         if value == "":
             continue
         if key == "policy":
-            key = "kernel_policy"
-        if key in INT_FIELDS or key == "kernel_policy":
-            try:
-                result[key] = int(value)
-            except ValueError as exc:
-                raise ValueError(f"invalid integer field {key}={value!r}") from exc
+            field = "kernel_policy"
+        elif key in INT_FIELDS:
+            field = key
         else:
             result[key] = value
+            continue
+        try:
+            result[field] = int(value)
+        except ValueError as exc:
+            raise ValueError(f"invalid integer field {key}={value!r}") from exc
     return result
 
 
 def parse_output(output, policy, run_index):
     rows = []
-    experiment_start = None
-    experiment_finish = None
-    malformed = []
+    end_match = END_RE.search(output)
+    if end_match is None:
+        raise RuntimeError("could not parse scenario benchmark end marker")
 
+    experiment_start, experiment_finish = map(int, end_match.groups())
+    elapsed = experiment_finish - experiment_start
+    malformed = []
     for match in RESULT_RE.finditer(output):
         try:
             row = parse_key_values(match.group(1))
         except ValueError:
             malformed.append(match.group(1))
             continue
-        required = {"job", "kind", "service", "turnaround"}
+        required = {"scenario", "job", "kind", "service", "turnaround"}
         if not required.issubset(row):
             malformed.append(match.group(1))
             continue
         row["policy"] = policy
         row["run"] = run_index
-        rows.append(row)
-
-    match = END_RE.search(output)
-    if match:
-        experiment_start, experiment_finish = map(int, match.groups())
-
-    if not rows or experiment_start is None or experiment_finish is None:
-        raise RuntimeError(
-            "could not parse benchmark output; "
-            f"raw output tail={output[-1000:]!r}"
-        )
-    if malformed:
-        raise RuntimeError(f"malformed benchmark record: {malformed[0]!r}")
-
-    elapsed = experiment_finish - experiment_start
-    for row in rows:
         row["experiment_start"] = experiment_start
         row["experiment_finish"] = experiment_finish
         row["elapsed"] = elapsed
@@ -236,49 +290,32 @@ def parse_output(output, policy, run_index):
             if row["schedule_count"]
             else 0.0
         )
-        row["throughput"] = len(rows) / elapsed if elapsed else 0.0
+        row["throughput"] = 0.0
+        rows.append(row)
+
+    if not rows:
+        raise RuntimeError(
+            "could not parse scenario benchmark rows; "
+            f"raw output tail={output[-1000:]!r}"
+        )
+    if malformed:
+        raise RuntimeError(
+            f"malformed scenario benchmark record(s): {malformed[0]!r}"
+        )
+
+    throughput = len(rows) / elapsed if elapsed else 0.0
+    for row in rows:
+        row["throughput"] = throughput
     return rows
 
 
-def print_results(rows, output_path):
-    fields = [
-        "policy",
-        "kernel_policy",
-        "run",
-        "job",
-        "kind",
-        "priority",
-        "start",
-        "first",
-        "finish",
-        "experiment_start",
-        "experiment_finish",
-        "elapsed",
-        "service",
-        "turnaround",
-        "weighted_turnaround",
-        "response",
-        "kernel_response",
-        "throughput",
-        "queue",
-        "slice",
-        "run_ticks",
-        "cpu_share",
-        "ready_count",
-        "ready_ticks",
-        "total_ready_time",
-        "avg_ready_per_schedule",
-        "wait_count",
-        "schedule_count",
-        "create_tick",
-        "first_run_tick",
-    ]
+def write_csv(rows, output_path):
     if output_path:
         parent = os.path.dirname(os.path.abspath(output_path))
         os.makedirs(parent, exist_ok=True)
     stream = open(output_path, "w", newline="") if output_path else sys.stdout
     try:
-        writer = csv.DictWriter(stream, fieldnames=fields, extrasaction="ignore")
+        writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
     finally:
@@ -286,19 +323,19 @@ def print_results(rows, output_path):
             stream.close()
 
 
-def print_summary(rows):
+def print_summary(rows, label):
     groups = defaultdict(list)
     for row in rows:
-        groups[(row["policy"], row["kind"])].append(row)
+        groups[(row["policy"], row["scenario"], row["kind"])].append(row)
 
-    print("\n[schedbench] summary", file=sys.stderr)
+    print(f"\n[{label}] summary", file=sys.stderr)
     print(
-        "policy,kind,count,avg_turnaround,avg_weighted_turnaround,"
-        "avg_response,avg_kernel_response,avg_run_ticks,"
-        "avg_schedule_count,avg_total_ready_time,throughput",
+        "policy,scenario,kind,count,avg_turnaround,"
+        "avg_weighted_turnaround,avg_response,avg_kernel_response,"
+        "avg_run_ticks,avg_schedule_count,avg_total_ready_time,throughput",
         file=sys.stderr,
     )
-    for (policy, kind), group in groups.items():
+    for (policy, scenario, kind), group in groups.items():
         count = len(group)
         avg_turnaround = sum(row["turnaround"] for row in group) / count
         avg_weighted = sum(row["weighted_turnaround"] for row in group) / count
@@ -309,66 +346,10 @@ def print_summary(rows):
         avg_total_ready_time = sum(row["total_ready_time"] for row in group) / count
         throughput = group[0]["throughput"]
         print(
-            f"{policy},{kind},{count},{avg_turnaround:.2f},"
+            f"{policy},{scenario},{kind},{count},{avg_turnaround:.2f},"
             f"{avg_weighted:.2f},{avg_response:.2f},"
             f"{avg_kernel_response:.2f},{avg_run_ticks:.2f},"
             f"{avg_schedule_count:.2f},{avg_total_ready_time:.2f},"
             f"{throughput:.4f}",
             file=sys.stderr,
         )
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--policies",
-        default="SCHED_RR",
-        help="comma-separated build-time policies, e.g. SCHED_RR,SCHED_MLFQ",
-    )
-    parser.add_argument("--jobs", type=int, default=6)
-    parser.add_argument("--work", type=int, default=40)
-    parser.add_argument("--repeat", type=int, default=1)
-    parser.add_argument("--timeout", type=int, default=180)
-    parser.add_argument("--cpu-priority", type=int, default=1)
-    parser.add_argument("--io-priority", type=int, default=9)
-    parser.add_argument("--mixed-priority", type=int, default=5)
-    parser.add_argument(
-        "--output",
-        nargs="?",
-        const=str(DEFAULT_OUTPUT),
-        help=(
-            "write CSV here; if no path is given, write to "
-            f"{DEFAULT_OUTPUT.relative_to(REPO_ROOT)}"
-        ),
-    )
-    args = parser.parse_args()
-
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    all_rows = []
-    for policy in [item.strip() for item in args.policies.split(",") if item.strip()]:
-        image = ensure_policy_image(repo, policy)
-        for run_index in range(args.repeat):
-            print(
-                f"[schedbench] running {policy} repeat {run_index + 1}/{args.repeat}",
-                file=sys.stderr,
-            )
-            try:
-                output = run_qemu(
-                    repo,
-                    args.jobs,
-                    args.work,
-                    [args.cpu_priority, args.io_priority, args.mixed_priority],
-                    args.timeout,
-                    image["kernel"],
-                    image["fs_image"],
-                )
-                all_rows.extend(parse_output(output, policy, run_index))
-            finally:
-                cleanup_intermediate_artifacts(repo)
-
-    print_results(all_rows, args.output)
-    print_summary(all_rows)
-
-
-if __name__ == "__main__":
-    main()
