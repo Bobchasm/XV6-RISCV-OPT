@@ -1,33 +1,70 @@
-# 调度结果绘图
+# 调度结果分析和绘图
 
-运行：
+所有命令都从仓库根目录执行：
 
 ```bash
-python3 analysis/plot_scheduler_results.py
+cd XV6/XV6-RISCV-OPT
 ```
 
-重新生成多尺度数据：
+安装 Python 绘图库：
+
+```bash
+python3 -m pip install -r analysis/requirements.txt
+```
+
+## 生成数据
+
+重新运行多尺度测试，比较 `RR`、`SPQ` 和 `MLFQ`：
 
 ```bash
 python3 analysis/run_multiscale.py
 ```
 
-脚本读取 `results/` 下的调度实验 CSV，生成 `analysis/plots/` 下的 PNG 和
-SVG 文件。PNG 适合直接放入汇报 PPT，SVG 适合后续排版和缩放。
+该脚本固定使用 `CPUS=1`，测试：
 
-当前图表包括：
+- 工作量：`5/10/20/30/40/60/80/100`
+- 并发任务数：`1/3/6/9/12`
+- 每组重复：`3` 次
 
-- 按 CPU、I/O、Mixed 分面的多工作量周转趋势图；
-- 多工作量的均值、总体标准差和误差带；
-- 工作量和并发任务数的二维周转热力图；
-- 按任务类型分面的并发度趋势图；
+结果写入 `results/`，文件名分别为：
+
+```text
+results/schedbench-rr-spq-mlfq-work5.csv
+results/schedbench-rr-spq-mlfq-work10.csv
+...
+results/schedbench-rr-spq-mlfq-work100.csv
+results/schedbench-rr-spq-mlfq-jobs1.csv
+results/schedbench-rr-spq-mlfq-jobs3.csv
+...
+results/schedbench-rr-spq-mlfq-jobs12.csv
+```
+
+也可以先使用 `scripts/run-schedbench.py` 或
+`schedworkloads/run-scenes.py` 生成单组数据，详见根目录
+[README](../README.md) 和 [测试清单](../docs/checkllist.md)。
+
+## 生成图表
+
+脚本读取 `results/` 下的 CSV，生成 PNG 和 SVG：
+
+```bash
+python3 analysis/plot_scheduler_results.py
+```
+
+图表输出到 `analysis/plots/`。PNG 可直接放入 PPT，SVG 适合报告排版和缩放。
+当前包括：
+
+- CPU、I/O、Mixed 三类任务的多工作量趋势图；
+- 均值、总体标准差和误差带；
+- 工作量和并发任务数热力图；
+- 并发度趋势图；
 - 跨工作量的箱线图；
-- 响应时间与周转时间的相关散点图，点大小表示运行 tick；
-- `compute`、`io`、`mixed` 场景对比图。
+- 响应时间与周转时间散点图；
+- 计算、I/O、混合场景对比图。
 
-多尺度基准使用工作量 `5/10/20/30/40/60/80/100` 和任务数
-`1/3/6/9/12`，每组 3 次重复，正式对比固定 `CPUS=1`。
+如果只想重新绘图而不重新运行 QEMU，直接执行绘图命令即可；如果
+`results/` 中缺少对应 CSV，脚本会报错。
 
-现有 CSV 是任务级调度统计，没有 `perf`、调用栈或函数采样数据，因此不能生成
-严格意义上的 OS 火焰图。火焰图需要采样调用栈并按函数聚合耗时；这里使用任务级
-柱状图、折线图和误差线图，更适合当前数据和调度算法比较目标。
+当前 CSV 是任务级调度统计，没有 `perf`、调用栈或函数采样数据，因此不能生成严格
+意义上的 OS 火焰图。现有图表更适合比较三种调度策略在不同工作量、并发度和任务类型
+下的调度表现。
