@@ -77,7 +77,6 @@ def run_qemu(repo, jobs, work, priorities, timeout, kernel, fs_image):
         [
             "make",
             "qemu",
-            "TOOLPREFIX=riscv64-linux-gnu-",
             "CPUS=1",
             f"KERNEL={kernel}",
             f"FS_IMAGE={fs_image}",
@@ -209,6 +208,7 @@ def parse_output(output, policy, run_index):
             "run_ticks",
             "total_ready_time",
             "schedule_count",
+            "kernel_response",
         }
         if not required.issubset(row):
             malformed.append(match.group(1))
@@ -235,6 +235,7 @@ def parse_output(output, policy, run_index):
             "run_ticks",
             "total_ready_time",
             "schedule_count",
+            "kernel_response",
         }
         record_keys = {
             item.split("=", 1)[0]

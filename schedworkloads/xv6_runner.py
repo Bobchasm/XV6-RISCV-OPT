@@ -133,7 +133,7 @@ def ensure_policy_image(repo, policy):
 
     print(f"[policy] build {policy} with make {paths['target']}", file=sys.stderr)
     run_command(
-        ["make", paths["target"], "TOOLPREFIX=riscv64-linux-gnu-"],
+        ["make", paths["target"]],
         repo,
     )
     cleanup_intermediate_artifacts(repo)
@@ -150,7 +150,6 @@ def run_qemu(repo, command, end_re, timeout, label, kernel, fs_image):
         [
             "make",
             "qemu",
-            "TOOLPREFIX=riscv64-linux-gnu-",
             "CPUS=1",
             f"KERNEL={kernel}",
             f"FS_IMAGE={fs_image}",
@@ -272,7 +271,17 @@ def parse_output(output, policy, run_index):
         except ValueError:
             malformed.append(match.group(1))
             continue
-        required = {"scenario", "job", "kind", "service", "turnaround"}
+        required = {
+            "scenario",
+            "job",
+            "kind",
+            "service",
+            "turnaround",
+            "kernel_response",
+            "run_ticks",
+            "total_ready_time",
+            "schedule_count",
+        }
         if not required.issubset(row):
             malformed.append(match.group(1))
             continue
