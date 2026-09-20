@@ -1,17 +1,15 @@
-# 调度测试检查清单
-
-目标：用相同的任务参数比较 `RR`、`SPQ`、`MLFQ`。正式对比固定
-`CPUS=1`，所有命令都在 `XV6/XV6-RISCV-OPT` 根目录执行。
+# 调度测试 Checklist
 
 约定：
 
+- 正式对比固定 `CPUS=1`
 - `RR`：`SCHED_RR`，镜像名 `rr`
 - `SPQ`：`SCHED_STATIC_PRIORITY`，镜像名 `spq`
 - `MLFQ`：`SCHED_MLFQ`，镜像名 `mlfq`
-- `results/` 中的 CSV 是原始测试结果，不提交到 Git
+- `results/` 中 CSV 为原始测试结果
 - `--output` 后不写路径时，脚本自动写入 `results/`
 
-## 1. 环境和构建
+## 1 环境和构建
 
 检查工具：
 
@@ -53,7 +51,7 @@ build/policies/mlfq/kernel-mlfq
 build/policies/mlfq/fs-mlfq.img
 ```
 
-## 2. 回归测试
+## 2 回归测试
 
 运行 xv6 用户态回归测试：
 
@@ -63,7 +61,7 @@ build/policies/mlfq/fs-mlfq.img
 
 要求输出 `ALL TESTS PASSED`，且没有 `panic`、超时或 QEMU 残留进程。
 
-## 3. 调度微基准
+## 3 调度微基准
 
 微基准包含 CPU 密集、I/O 密集和混合任务，比较周转时间、响应时间、
 等待时间、运行 tick、调度次数和吞吐量。
@@ -140,7 +138,7 @@ python3 scripts/run-schedbench.py \
   --output results/schedbench-spq-highcpu.csv
 ```
 
-## 4. 场景测试
+## 4 场景测试
 
 三个场景分别代表计算密集、I/O 密集和交互与后台任务混合负载。
 
@@ -196,7 +194,7 @@ python3 schedworkloads/run-scenes.py \
   --output results/schedscene-mixed-rr-spq-mlfq.csv
 ```
 
-## 5. 边界和专项测试
+## 5 边界和专项测试
 
 单任务：观察没有任务竞争时的基线。
 
@@ -248,7 +246,7 @@ python3 schedworkloads/run-scenes.py \
   --output results/schedscene-mlfq-io-mixed.csv
 ```
 
-## 6. 结果校验
+## 6 结果校验
 
 检查所有 CSV 的策略、字段和数值：
 
@@ -284,6 +282,3 @@ PY
 ```bash
 pgrep -af qemu-system-riscv64 || true
 ```
-
-正式分析时使用重复实验的均值和波动，不根据单次最好结果下结论。
-当前 CSV 的 `service` 是工作量近似值，不等同于精确 CPU 时间。
