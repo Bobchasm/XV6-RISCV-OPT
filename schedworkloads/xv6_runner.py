@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 RESULT_RE = re.compile(
-    r"SCENEBENCH\s+(?=scenario=)(.*?)(?=\r?\n|SCENEBENCH(?:\s|_|$)|$)"
+    r"SCENEBENCH\s+(?=scenario=)(.*?)(?=SCENEBENCH(?:\s|_|$)|$)"
 )
 END_RE = re.compile(r"SCENEBENCH_END start=(\d+) finish=(\d+)(?=\r?\n)")
 POLICY_TARGETS = {
