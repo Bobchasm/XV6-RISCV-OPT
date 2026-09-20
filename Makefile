@@ -185,7 +185,7 @@ UPROGS=\
 fs.img: mkfs/mkfs $(UPROGS)
 	mkfs/mkfs fs.img $(UPROGS)
 
-.PHONY: rr spq mlfq policy-image policies-clean
+.PHONY: rr spq mlfq policies policy-image policies-clean
 
 rr: POLICY_NAME=rr
 rr: POLICY_VALUE=SCHED_RR
@@ -198,6 +198,13 @@ spq: policy-image
 mlfq: POLICY_NAME=mlfq
 mlfq: POLICY_VALUE=SCHED_MLFQ
 mlfq: policy-image
+
+# 策略镜像目标内部会清理工作区，因此必须串行构建。
+policies:
+	@set -e; \
+	$(MAKE) rr; \
+	$(MAKE) spq; \
+	$(MAKE) mlfq
 
 # 只有策略镜像缺失时才重新构建。源码发生变化后可执行 policies-clean 强制刷新。
 policy-image:

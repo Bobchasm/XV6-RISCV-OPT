@@ -36,16 +36,22 @@ export TOOLPREFIX=riscv64-linux-gnu-
 make clean
 
 # 构建，默认调度策略为 RR
-make -j"$(nproc)" TOOLPREFIX=riscv64-linux-gnu- SCHED_DEFAULT_POLICY=SCHED_RR
+make -j"$(nproc)" SCHED_DEFAULT_POLICY=SCHED_RR
 
 # 运行系统
-make qemu TOOLPREFIX=riscv64-linux-gnu-
+make qemu
 ```
 
 也可以使用单 CPU 启动：
 
 ```bash
-make qemu TOOLPREFIX=riscv64-linux-gnu- CPUS=1
+make qemu CPUS=1
+```
+
+一次构建三种调度策略镜像：
+
+```bash
+make policies
 ```
 
 运行测试：
