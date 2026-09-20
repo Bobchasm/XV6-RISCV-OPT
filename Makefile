@@ -68,6 +68,9 @@ OBJDUMP = $(TOOLPREFIX)objdump
 #   make SCHED_DEFAULT_POLICY=SCHED_RR
 SCHED_DEFAULT_POLICY ?= SCHED_RR
 
+# 每种调度策略生成独立的 kernel 和文件系统镜像，避免切换策略时覆盖已有构建。
+POLICY_IMAGE_ROOT ?= build/policies
+
 # Deterministic builds.
 DETFLAGS = -ffile-prefix-map=$(CURDIR)=.
 
@@ -98,6 +101,10 @@ CFLAGS += -fno-pie -nopie
 endif
 
 LDFLAGS = -z max-page-size=4096
+
+# qemu 默认使用当前工作区的构建产物；场景测试会传入策略专用镜像路径。
+KERNEL ?= $K/kernel
+FS_IMAGE ?= fs.img
 
 $K/kernel: $(OBJS) $K/kernel.ld
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
@@ -165,7 +172,40 @@ UPROGS=\
 fs.img: mkfs/mkfs $(UPROGS)
 	mkfs/mkfs fs.img $(UPROGS)
 
--include kernel/*.d user/*.d
+.PHONY: rr static-priority mlfq policy-image policies-clean
+
+rr: POLICY_NAME=rr
+rr: POLICY_VALUE=SCHED_RR
+rr: policy-image
+
+static-priority: POLICY_NAME=static-priority
+static-priority: POLICY_VALUE=SCHED_STATIC_PRIORITY
+static-priority: policy-image
+
+mlfq: POLICY_NAME=mlfq
+mlfq: POLICY_VALUE=SCHED_MLFQ
+mlfq: policy-image
+
+# 只有策略镜像缺失时才重新构建。源码发生变化后可执行 policies-clean 强制刷新。
+policy-image:
+	@if [ -f "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/kernel-$(POLICY_NAME)" ] && \
+		[ -f "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/fs-$(POLICY_NAME).img" ]; then \
+		echo "[policy] reuse $(POLICY_NAME) image"; \
+	else \
+		echo "[policy] build $(POLICY_NAME) image"; \
+		$(MAKE) clean; \
+		$(MAKE) SCHED_DEFAULT_POLICY=$(POLICY_VALUE) TOOLPREFIX="$(TOOLPREFIX)" \
+			$K/kernel fs.img; \
+		mkdir -p "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)"; \
+		cp $K/kernel "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/kernel-$(POLICY_NAME)"; \
+		cp fs.img "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/fs-$(POLICY_NAME).img"; \
+		$(MAKE) clean; \
+	fi
+
+policies-clean:
+	rm -rf "$(POLICY_IMAGE_ROOT)"
+
+-include kernel/*.d user/*.d schedworkloads/*.d
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
@@ -185,18 +225,18 @@ ifndef CPUS
 CPUS := 3
 endif
 
-QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
+QEMUOPTS = -machine virt -bios none -kernel $(KERNEL) -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
-QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
+QEMUOPTS += -drive file=$(FS_IMAGE),if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
-qemu: check-qemu-version $K/kernel fs.img
+qemu: check-qemu-version $(KERNEL) $(FS_IMAGE)
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: $K/kernel .gdbinit fs.img
+qemu-gdb: $(KERNEL) .gdbinit $(FS_IMAGE)
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
