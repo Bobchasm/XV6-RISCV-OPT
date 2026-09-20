@@ -201,7 +201,8 @@ mlfq: policy-image
 
 # 只有策略镜像缺失时才重新构建。源码发生变化后可执行 policies-clean 强制刷新。
 policy-image:
-	@if [ -f "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/kernel-$(POLICY_NAME)" ] && \
+	@set -e; \
+	if [ -f "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/kernel-$(POLICY_NAME)" ] && \
 		[ -f "$(POLICY_IMAGE_ROOT)/$(POLICY_NAME)/fs-$(POLICY_NAME).img" ]; then \
 		echo "[policy] reuse $(POLICY_NAME) image"; \
 	else \
