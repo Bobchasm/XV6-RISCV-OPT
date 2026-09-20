@@ -19,11 +19,51 @@ static int priorities[3] = {
   DEFAULT_MIXED_PRIORITY,
 };
 
+static char *
+append_text(char *out, const char *text)
+{
+  while (*text)
+    *out++ = *text++;
+  return out;
+}
+
+static char *
+append_int(char *out, int value)
+{
+  char digits[16];
+  int count = 0;
+  uint unsigned_value;
+
+  if (value < 0) {
+    *out++ = '-';
+    unsigned_value = (uint)-value;
+  } else {
+    unsigned_value = (uint)value;
+  }
+  do {
+    digits[count++] = '0' + unsigned_value % 10;
+    unsigned_value /= 10;
+  } while (unsigned_value);
+  while (count > 0)
+    *out++ = digits[--count];
+  return out;
+}
+
+static char *
+append_field(char *out, const char *name, int value)
+{
+  out = append_text(out, name);
+  *out++ = '=';
+  return append_int(out, value);
+}
+
 // 用易解析的 key=value 行输出结果，宿主机脚本不需要理解 xv6 内核结构。
 static void
 print_result(int job, int kind, int start, int first, int finish, int work,
              struct psinfo *info)
 {
+  char line[512];
+  char *out = line;
   char *kind_name = "cpu";
   int turnaround = finish - start;
   int response = first - start;
@@ -37,18 +77,50 @@ print_result(int job, int kind, int start, int first, int finish, int work,
   if (info->schedule_count > 0)
     kernel_response = info->first_run_tick - info->create_tick;
 
-  printf("SCHEDBENCH job=%d kind=%s start=%d first=%d finish=%d "
-         "service=%d turnaround=%d response=%d priority=%d queue=%d "
-         "slice=%d run_ticks=%d ready_count=%d ready_ticks=%d "
-         "total_ready_time=%d wait_count=%d schedule_count=%d "
-         "create_tick=%d first_run_tick=%d kernel_response=%d policy=%d\n",
-         job, kind_name, start, first, finish, work, turnaround, response,
-         info->priority, info->queue_level, info->time_slice,
-         (int)info->run_time, (int)info->ready_count,
-         (int)info->ready_ticks, (int)info->total_ready_time,
-         (int)info->wait_count, (int)info->schedule_count,
-         (int)info->create_tick, (int)info->first_run_tick, kernel_response,
-         info->sched_policy);
+  out = append_text(out, "SCHEDBENCH ");
+  out = append_field(out, "job", job);
+  out = append_text(out, " kind=");
+  out = append_text(out, kind_name);
+  out = append_text(out, " ");
+  out = append_field(out, "start", start);
+  out = append_text(out, " ");
+  out = append_field(out, "first", first);
+  out = append_text(out, " ");
+  out = append_field(out, "finish", finish);
+  out = append_text(out, " ");
+  out = append_field(out, "service", work);
+  out = append_text(out, " ");
+  out = append_field(out, "turnaround", turnaround);
+  out = append_text(out, " ");
+  out = append_field(out, "response", response);
+  out = append_text(out, " ");
+  out = append_field(out, "priority", info->priority);
+  out = append_text(out, " ");
+  out = append_field(out, "queue", info->queue_level);
+  out = append_text(out, " ");
+  out = append_field(out, "slice", info->time_slice);
+  out = append_text(out, " ");
+  out = append_field(out, "run_ticks", (int)info->run_time);
+  out = append_text(out, " ");
+  out = append_field(out, "ready_count", (int)info->ready_count);
+  out = append_text(out, " ");
+  out = append_field(out, "ready_ticks", (int)info->ready_ticks);
+  out = append_text(out, " ");
+  out = append_field(out, "total_ready_time", (int)info->total_ready_time);
+  out = append_text(out, " ");
+  out = append_field(out, "wait_count", (int)info->wait_count);
+  out = append_text(out, " ");
+  out = append_field(out, "schedule_count", (int)info->schedule_count);
+  out = append_text(out, " ");
+  out = append_field(out, "create_tick", (int)info->create_tick);
+  out = append_text(out, " ");
+  out = append_field(out, "first_run_tick", (int)info->first_run_tick);
+  out = append_text(out, " ");
+  out = append_field(out, "kernel_response", kernel_response);
+  out = append_text(out, " ");
+  out = append_field(out, "policy", info->sched_policy);
+  *out++ = '\n';
+  write(1, line, out - line);
 }
 
 static void

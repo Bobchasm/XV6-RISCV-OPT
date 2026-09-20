@@ -21,7 +21,8 @@ from schedworkloads.xv6_runner import POLICY_TARGETS, ensure_policy_image
 # xv6 控制台输出有时会把两条 printf 结果粘在同一行，
 # 因此这里按标记扫描整段输出，而不是依赖换行切分。
 RESULT_RE = re.compile(
-    r"SCHEDBENCH\s+(?=job=)(.*?)(?=SCHEDBENCH(?:\s|_|$)|$)"
+    r"SCHEDBENCH\s+(?=job=)(.*?)(?=SCHEDBENCH(?:\s|_|$)|$)",
+    re.DOTALL,
 )
 # END 行必须读到换行后才算完整；否则流式读取可能在 finish=42
 # 刚收到 finish=4 时就提前停止，导致实验总时长被截断。
