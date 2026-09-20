@@ -78,7 +78,7 @@ sched_policy_name(enum sched_policy policy)
   case SCHED_RR:
     return "rr";
   case SCHED_STATIC_PRIORITY:
-    return "static-priority";
+    return "spq";
   case SCHED_MLFQ:
     return "mlfq";
   default:

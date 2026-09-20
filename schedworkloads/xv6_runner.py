@@ -18,7 +18,7 @@ RESULT_RE = re.compile(
 END_RE = re.compile(r"SCENEBENCH_END start=(\d+) finish=(\d+)(?=\r?\n)")
 POLICY_TARGETS = {
     "SCHED_RR": "rr",
-    "SCHED_STATIC_PRIORITY": "static-priority",
+    "SCHED_STATIC_PRIORITY": "spq",
     "SCHED_MLFQ": "mlfq",
 }
 INT_FIELDS = {

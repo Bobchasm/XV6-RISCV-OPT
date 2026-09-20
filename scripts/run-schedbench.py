@@ -13,10 +13,9 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT = REPO_ROOT / "results" / "schedbench.csv"
 sys.path.insert(0, str(REPO_ROOT))
 
-from schedworkloads.xv6_runner import ensure_policy_image
+from schedworkloads.xv6_runner import POLICY_TARGETS, ensure_policy_image
 
 
 # xv6 控制台输出有时会把两条 printf 结果粘在同一行，
@@ -335,13 +334,19 @@ def main():
     parser.add_argument(
         "--output",
         nargs="?",
-        const=str(DEFAULT_OUTPUT),
+        const="",
         help=(
             "write CSV here; if no path is given, write to "
-            f"{DEFAULT_OUTPUT.relative_to(REPO_ROOT)}"
+            "results/schedbench-<algorithms>.csv"
         ),
     )
     args = parser.parse_args()
+    if args.output == "":
+        policies = [item.strip() for item in args.policies.split(",") if item.strip()]
+        names = [POLICY_TARGETS.get(policy, policy.lower()) for policy in policies]
+        args.output = str(
+            REPO_ROOT / "results" / f"schedbench-{'-'.join(names)}.csv"
+        )
 
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     all_rows = []

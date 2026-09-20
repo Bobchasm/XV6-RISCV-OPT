@@ -185,15 +185,15 @@ UPROGS=\
 fs.img: mkfs/mkfs $(UPROGS)
 	mkfs/mkfs fs.img $(UPROGS)
 
-.PHONY: rr static-priority mlfq policy-image policies-clean
+.PHONY: rr spq mlfq policy-image policies-clean
 
 rr: POLICY_NAME=rr
 rr: POLICY_VALUE=SCHED_RR
 rr: policy-image
 
-static-priority: POLICY_NAME=static-priority
-static-priority: POLICY_VALUE=SCHED_STATIC_PRIORITY
-static-priority: policy-image
+spq: POLICY_NAME=spq
+spq: POLICY_VALUE=SCHED_STATIC_PRIORITY
+spq: policy-image
 
 mlfq: POLICY_NAME=mlfq
 mlfq: POLICY_VALUE=SCHED_MLFQ

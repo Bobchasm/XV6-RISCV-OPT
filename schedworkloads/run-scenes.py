@@ -5,14 +5,13 @@ import argparse
 import os
 import sys
 
-from xv6_runner import END_RE, cleanup_intermediate_artifacts
+from xv6_runner import END_RE, POLICY_TARGETS, cleanup_intermediate_artifacts
 from xv6_runner import ensure_policy_image
 from xv6_runner import parse_output, print_summary, run_qemu, write_csv
 
 
 SUPPORTED_SCENARIOS = {"compute", "io", "mixed"}
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_OUTPUT = os.path.join(REPO_ROOT, "results", "schedscene.csv")
 
 
 def main():
@@ -37,10 +36,22 @@ def main():
     parser.add_argument(
         "--output",
         nargs="?",
-        const=DEFAULT_OUTPUT,
-        help="write CSV here; if no path is given, write to results/schedscene.csv",
+        const="",
+        help=(
+            "write CSV here; if no path is given, write to "
+            "results/schedscene-<algorithms>.csv"
+        ),
     )
     args = parser.parse_args()
+    if args.output == "":
+        names = [
+            POLICY_TARGETS.get(policy.strip(), policy.strip().lower())
+            for policy in args.policies.split(",")
+            if policy.strip()
+        ]
+        args.output = os.path.join(
+            REPO_ROOT, "results", f"schedscene-{'-'.join(names)}.csv"
+        )
 
     repo = REPO_ROOT
     policies = [item.strip() for item in args.policies.split(",") if item.strip()]

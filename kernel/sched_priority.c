@@ -81,7 +81,7 @@ priority_should_preempt(struct proc *p)
 
 const struct sched_strategy priority_sched_strategy = {
   .policy = SCHED_STATIC_PRIORITY,
-  .name = "static-priority",
+  .name = "spq",
   .select_next = priority_select_next,
   .on_tick = priority_on_tick,
   .on_yield = priority_on_yield,
