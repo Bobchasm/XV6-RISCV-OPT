@@ -201,7 +201,15 @@ def parse_output(output, policy, run_index):
         except ValueError:
             malformed.append(match.group(1))
             continue
-        required = {"job", "kind", "service", "turnaround"}
+        required = {
+            "job",
+            "kind",
+            "service",
+            "turnaround",
+            "run_ticks",
+            "total_ready_time",
+            "schedule_count",
+        }
         if not required.issubset(row):
             malformed.append(match.group(1))
             continue
@@ -219,7 +227,24 @@ def parse_output(output, policy, run_index):
             f"raw output tail={output[-1000:]!r}"
         )
     if malformed:
-        raise RuntimeError(f"malformed benchmark record: {malformed[0]!r}")
+        required = {
+            "job",
+            "kind",
+            "service",
+            "turnaround",
+            "run_ticks",
+            "total_ready_time",
+            "schedule_count",
+        }
+        record_keys = {
+            item.split("=", 1)[0]
+            for item in malformed[0].split()
+            if "=" in item
+        }
+        missing = sorted(required - record_keys)
+        raise RuntimeError(
+            f"malformed benchmark record; missing={missing}: {malformed[0]!r}"
+        )
 
     elapsed = experiment_finish - experiment_start
     for row in rows:
