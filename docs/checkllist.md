@@ -138,6 +138,12 @@ python3 scripts/run-schedbench.py \
   --output results/schedbench-spq-highcpu.csv
 ```
 
+多尺度数据：一次覆盖多档工作量和并发任务数，供绘图和报告分析使用。
+
+```bash
+python3 analysis/run_multiscale.py
+```
+
 ## 4 场景测试
 
 三个场景分别代表计算密集、I/O 密集和交互与后台任务混合负载。
