@@ -219,7 +219,6 @@ analysis/plots/
 
 - [调度测试清单](docs/checkllist.md)
 - [调度测试结果分析](docs/调度测试结果分析.md)
-- [调度测试与性能分析](docs/测试与性能分析.md)
 - [场景化调度测试](docs/场景化测试设计.md)
 - [绘图说明](analysis/README.md)
 
